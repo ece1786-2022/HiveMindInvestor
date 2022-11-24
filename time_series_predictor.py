@@ -51,7 +51,7 @@ class TimeSeriesPredictor():
         sigmoid = lambda x: 1/(1 + np.exp(-x))
         return sigmoid(predicted_trend)
             
-    def eval(self,start_date, end_date, loss_fn:function = None):
+    def eval(self,start_date, end_date, loss_fn = None):
         '''
         loss_fn takes a predicted_trend and a actual_trend as inpts
         '''
