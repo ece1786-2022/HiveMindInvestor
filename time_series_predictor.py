@@ -74,7 +74,7 @@ class TimeSeriesPredictor():
             score = sigmoid(predicted_trend/actual_trend)
         else:
             score = loss_fn((predicted_trend, actual_trend))
-        return 
+        return score
         
         
     def plot_fit(self):
