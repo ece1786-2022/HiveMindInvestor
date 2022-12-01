@@ -9,14 +9,27 @@ import torch
 
 
 class TimeSeriesPredictor():
-    def __init__(self, input_data, train_test_ratio=0.9):
+    def __init__(self, input_data, train_test_split=0.9):
+        '''
+        input_data: the input data. 
+            - Can be a dataframe (must have a column 'ds' containing the dates and a column 'y' containing the data)
+            - Can also be the path to a csv file containing the raw data.
+        train_test_split: 
+            - Can be a float value between 0 and 1. Will represent the split ratio
+            - Can also be a date string. Will represent a date by which to split test and training data
+        '''
         if isinstance(input_data, pd.DataFrame):
             self.raw = input_data
         elif isinstance(input_data, str):
             self.raw = self.parse_csv(input_data)
-
-        self.train_data, self.test_data = self.raw[3:int(len(self.raw)*0.90)], self.raw[int(len(self.raw)*0.90):]
-    
+            
+        if isinstance(train_test_split, float):
+            self.train_data, self.test_data = self.raw[3:int(len(self.raw)*train_test_split)], self.raw[int(len(self.raw)*train_test_split):]
+        elif isinstance(train_test_split, str):
+            mask = (self.raw['ds'] < train_test_split)
+            self.train_data = self.raw[mask]
+            self.test_data = self.raw[~mask]
+            
     def fit(self):
         m = Prophet(daily_seasonality = True)
         m.fit(self.train_data)
@@ -55,8 +68,8 @@ class TimeSeriesPredictor():
         '''
         loss_fn takes a predicted_trend and a actual_trend as inpts
         '''
-        assert (start_date > self.test_data['ds']).sum() > 0
-        assert  (end_date < self.test_data['ds']).sum() > 0
+        assert (start_date >= self.test_data['ds']).sum() > 0
+        assert  (end_date <= self.test_data['ds']).sum() > 0
     
         fc=self.fc
         
@@ -75,13 +88,19 @@ class TimeSeriesPredictor():
         else:
             score = loss_fn((predicted_trend, actual_trend))
         return score
-        
+    
+    @staticmethod
+    def fit_and_eval(data, start_date, end_date, loss_fn = None):
+        tsp = TimeSeriesPredictor(data, train_test_split=start_date)
+        tsp.fit()
+        return tsp.eval(start_date=start_date,end_date=end_date)
         
     def plot_fit(self):
         train_data = self.train_data
         test_data = self.test_data
         df = self.raw
         fc = self.fc
+        fc = pd.concat([df, fc])
         fc_series = pd.Series(fc['yhat'].to_numpy())
         lower_series = pd.Series(fc['yhat_lower'].to_numpy())
         upper_series = pd.Series(fc['yhat_upper'].to_numpy())
@@ -89,8 +108,8 @@ class TimeSeriesPredictor():
         plt.figure(figsize=(10,5), dpi=100)
         plt.plot(train_data['ds'], train_data['y'], label='training data')
         plt.plot(test_data['ds'], test_data['y'], color = 'blue', label='Actual Stock Price')
-        plt.plot(df['ds'].iloc[3:],fc_series, color = 'orange',label='Predicted Stock Price')
-        plt.fill_between(df['ds'].iloc[3:], lower_series, upper_series, 
+        plt.plot(fc['ds'],fc_series, color = 'orange',label='Predicted Stock Price')
+        plt.fill_between(fc['ds'], lower_series, upper_series, 
                         color='k', alpha=.10)
         plt.title(' Stock Price Prediction')
         plt.xlabel('Time')
@@ -100,7 +119,6 @@ class TimeSeriesPredictor():
 
     def get_test_data_range(self):
         return (self.test_data['ds'].iloc[0], self.test_data['ds'].iloc[1])
-    
     @staticmethod
     def parse_csv(filename):
         try: 
@@ -111,6 +129,10 @@ class TimeSeriesPredictor():
             df = pd.read_csv(filename,sep=',', parse_dates=['Date'], date_parser=dateparse).fillna(0)
         df = df[['Date', 'Close']]
         df = df.rename(columns={"Date":"ds", "Close":"y"})
+        ##Make the dates continuous
+        dr = pd.DataFrame()
+        dr['ds'] = pd.date_range(df['ds'].iloc[0], df['ds'].iloc[-1])
+        df = dr.merge(df, on='ds', how='left')
         return df
 
 if __name__ == "__main__":
