@@ -1,6 +1,8 @@
 #%%
 from datetime import datetime, timedelta
 import pandas as pd
+from time_series_predictor import TimeSeriesPredictor
+import torch
 
 def sliding_window(start_date, end_date,window_size, stride, fn):
     start_date = datetime.strptime(start_date, "%Y-%m-%d %X")
@@ -14,9 +16,26 @@ def sliding_window(start_date, end_date,window_size, stride, fn):
             ret.append(score)     
     return ret
 
+def ts_fit_and_eval_test(SOURCE_FILE):
+    fn = lambda x: TimeSeriesPredictor.fit_and_eval(SOURCE_FILE, x[0], x[1])
+    
+    start_date = '2022-06-15 00:00:00'
+    end_date = '2022-09-30 23:59:59'
+    ret = sliding_window(start_date, end_date, 7, 1, fn)
+    ret = torch.tensor(ret)
+    score = ret[ret>0.5].shape[0]/ret.shape[0]
+    print(score)
+    return {SOURCE_FILE:score}
+    
 if __name__ == "__main__":
-    from time_series_predictor import TimeSeriesPredictor
-    import torch
+    SOURCE_FILES=[
+            'stocks_data/AAPL.csv',
+            'stocks_data/AMZN.csv',
+            'stocks_data/GOOG.csv',
+            'stocks_data/META.csv',
+            'stocks_data/NFLX.csv',
+            'stocks_data/TSLA.csv'
+                  ]
     # SOURCE_FILE='stocks_data/AAPL.csv'
     # SOURCE_FILE='stocks_data/AMZN.csv'
     # SOURCE_FILE='stocks_data/GOOG.csv'
@@ -38,15 +57,20 @@ if __name__ == "__main__":
     # tsp.plot_fit()
     #%%
     
+    # out={}
+    # for f in SOURCE_FILES:
+    #     out.update(ts_fit_and_eval_test(f))
+    
+    from multiprocessing import Pool
+
+    with Pool(len(SOURCE_FILES)) as p:
+        out = p.map(ts_fit_and_eval_test, SOURCE_FILES)
+        
+    with open('ts_fit_and_eval_test.txt', 'w') as f:
+        f.write(str(out))
+        
     # fn = lambda x: tsp.fit(x[0], x[1])
     
-    fn = lambda x: TimeSeriesPredictor.fit_and_eval(SOURCE_FILE, x[0], x[1])
-    
-    start_date = '2022-06-15 00:00:00'
-    end_date = '2022-09-30 23:59:59'
-    ret = sliding_window(start_date, end_date, 7, 1, fn)
-    ret = torch.tensor(ret)
-    score = ret[ret>0.5].shape[0]/ret.shape[0]
-    print(score)
+
 
 # %%

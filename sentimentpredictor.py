@@ -7,12 +7,12 @@ Original file is located at
     https://colab.research.google.com/drive/1tPphoepyXnumAwnCzDUga2f8iUwC4e5P
 """
 
-! pip install transformers datasets
-
-!pip install evaluate
+# !pip install transformers datasets
+# !pip install evaluate
 
 import numpy as np
 import pandas as pd
+from datetime import datetime
 import torch
 import re
 import string
@@ -25,16 +25,24 @@ import datasets
 from torch.utils.data import DataLoader
 
 class SentimentPredictor():
-  def __init__(self, input_data, model, tokenizer, start_date, end_date):
+  def __init__(self, input_data, model, tokenizer):
       if isinstance(input_data, pd.DataFrame):
             self.raw = input_data
       elif isinstance(input_data, str):
-            self.raw = pd.read_csv(input_data)
+            self.raw = self.read_csv(input_data)
       self.model_name = model
-      self.start_date = start_date
-      self.end_date = end_date
       self.tokenizer = tokenizer
-
+      
+  @staticmethod
+  def read_csv(filename):
+    try: 
+        dateparse = lambda dates: pd.to_datetime(dates, format='%Y-%m-%d')
+        df = pd.read_csv(filename, parse_dates=['Time'], date_parser=dateparse)
+    except:
+        dateparse = lambda dates: pd.to_datetime(dates, format='%m/%d/%Y')
+        df = pd.read_csv(filename, parse_dates=['Time'], date_parser=dateparse)
+    return df
+  
   def data_process(self):
     test_r_data = self.raw.copy()
     # print(test_r_data)
@@ -45,7 +53,8 @@ class SentimentPredictor():
     # print(test_r_data)
     df = test_r_data[['Post_Concat', 'Time', 'Score','Label']].copy()
     # df = df.sort_values(by='Time',ascending=False)
-
+    dateparse = lambda dates: pd.to_datetime(dates, format='%Y-%m-%d')
+    
     mask = (df['Time'] > self.start_date) & (df['Time'] <= self.end_date)
     
     df_date = df.loc[mask]
@@ -76,7 +85,9 @@ class SentimentPredictor():
     # print(test_dataset_dict)
     return test_dataset_dict
 
-  def predict(self):
+  def predict(self,start_date, end_date):
+    self.start_date = start_date
+    self.end_date = end_date
     # Load pretrained model
     tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
     model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
@@ -95,31 +106,27 @@ class SentimentPredictor():
     # print(tokenized_datasets_test)
     # Dataloader
     test_dataloader = DataLoader(tokenized_datasets_test['test'], batch_size=8)
-    predictions_list = []
     softmax = torch.nn.Softmax(dim=1)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model.to(device)  
+    model.to(device)
+    ret = []
     for batch in test_dataloader:
       batch = {k: v.to(device) for k, v in batch.items()}
       with torch.no_grad():
         outputs = model(**batch)
       logits = outputs.logits
       # print(logits)
-      predictions = torch.argmax(logits, dim=-1)
-      prediction_prob = softmax(logits)
-      predict = predictions.cpu().detach().tolist()
-      predictions_list.append(predict)
-    result = []
-    for i in  predictions_list:
-      for j in i:
-        result.append(j)
-    
+      prediction_prob = softmax(logits)[:,1]
+      ret.append(prediction_prob)
+    result = torch.stack(ret).flatten()
     return result
 
-model_name = '/content/drive/MyDrive/ECE1786Project/model_juliensimon'
-input_data = '/content/drive/MyDrive/ECE1786Project/data_labeled/Amazon_posts_labeled.csv'
-tokenizer = "juliensimon/reviews-sentiment-analysis"
-start_date = '11/18/2022 00:00'
-end_date = '11/24/2022 23:59'
-sp = SentimentPredictor(input_data, model_name, tokenizer, start_date, end_date)
-sp.predict()
+if __name__ == "__main__":
+  model_name = './model/model_juliensimon'
+  input_data = './data_labeled/Meta_posts_clean.csv'
+  tokenizer = "juliensimon/reviews-sentiment-analysis"
+  start_date = '2022-11-18 00:00'
+  end_date = '2022-11-24 23:59'
+  sp = SentimentPredictor(input_data, model_name, tokenizer)
+  a = sp.predict(start_date, end_date)
+  stop_here=1

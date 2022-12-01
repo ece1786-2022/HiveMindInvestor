@@ -118,7 +118,8 @@ class TimeSeriesPredictor():
         plt.show()
 
     def get_test_data_range(self):
-        return (self.test_data['ds'].iloc[0], self.test_data['ds'].iloc[1])
+        return (self.test_data['ds'].iloc[0], self.test_data['ds'].iloc[-1])
+    
     @staticmethod
     def parse_csv(filename):
         try: 
