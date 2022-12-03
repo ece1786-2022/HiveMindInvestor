@@ -9,7 +9,7 @@ import torch
 
 
 class TimeSeriesPredictor():
-    def __init__(self, input_data, train_test_split=0.9):
+    def __init__(self, input_data):
         '''
         input_data: the input data. 
             - Can be a dataframe (must have a column 'ds' containing the dates and a column 'y' containing the data)
@@ -22,7 +22,8 @@ class TimeSeriesPredictor():
             self.raw = input_data
         elif isinstance(input_data, str):
             self.raw = self.parse_csv(input_data)
-            
+    
+    def split_data(self, train_test_split):
         if isinstance(train_test_split, float):
             self.train_data, self.test_data = self.raw[3:int(len(self.raw)*train_test_split)], self.raw[int(len(self.raw)*train_test_split):]
         elif isinstance(train_test_split, str):
@@ -30,7 +31,9 @@ class TimeSeriesPredictor():
             self.train_data = self.raw[mask]
             self.test_data = self.raw[~mask]
             
-    def fit(self):
+    def fit(self, train_test_split=0.9):
+        self.split_data(train_test_split)
+        
         m = Prophet(daily_seasonality = True)
         m.fit(self.train_data)
         self.m = m
@@ -63,7 +66,16 @@ class TimeSeriesPredictor():
         predicted_trend = (fc['yhat'].iloc[-1] - fc['yhat'].iloc[0])*temp/(fc['ds'].iloc[-1] - fc['ds'].iloc[0]).days
         sigmoid = lambda x: 1/(1 + np.exp(-x))
         return sigmoid(predicted_trend)
-            
+    
+    def acutal_trend(self, start_date, end_date):
+        assert (start_date >= self.test_data['ds']).sum() > 0
+        assert  (end_date <= self.test_data['ds']).sum() > 0
+    
+        mask = (self.test_data['ds'] > start_date) & (self.test_data['ds'] <= end_date)
+        test_data = self.test_data.loc[mask]
+        actual_trend = test_data['y'].iloc[-1] - test_data['y'].iloc[0]
+        return actual_trend
+        
     def eval(self,start_date, end_date, loss_fn = None):
         '''
         loss_fn takes a predicted_trend and a actual_trend as inpts
@@ -88,12 +100,6 @@ class TimeSeriesPredictor():
         else:
             score = loss_fn((predicted_trend, actual_trend))
         return score
-    
-    @staticmethod
-    def fit_and_eval(data, start_date, end_date, loss_fn = None):
-        tsp = TimeSeriesPredictor(data, train_test_split=start_date)
-        tsp.fit()
-        return tsp.eval(start_date=start_date,end_date=end_date)
         
     def plot_fit(self):
         train_data = self.train_data
@@ -133,7 +139,7 @@ class TimeSeriesPredictor():
         ##Make the dates continuous
         dr = pd.DataFrame()
         dr['ds'] = pd.date_range(df['ds'].iloc[0], df['ds'].iloc[-1])
-        df = dr.merge(df, on='ds', how='left')
+        df = dr.merge(df, on='ds', how='left').fillna(method='bfill')
         return df
 
 if __name__ == "__main__":

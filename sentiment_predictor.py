@@ -30,32 +30,36 @@ class SentimentPredictor():
             self.raw = input_data
       elif isinstance(input_data, str):
             self.raw = self.read_csv(input_data)
-      self.model_name = model
-      self.tokenizer = tokenizer
+            
+      self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
       
+      self.model_name = model
+      self.tokenizer_name = tokenizer
+          # Load pretrained model
+      self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+      self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+      self.model.to(self.device)
   @staticmethod
   def read_csv(filename):
     try: 
         dateparse = lambda dates: pd.to_datetime(dates, format='%Y-%m-%d')
-        df = pd.read_csv(filename, parse_dates=['Time'], date_parser=dateparse)
+        df = pd.read_csv(filename, parse_dates=['Date'], date_parser=dateparse)
     except:
         dateparse = lambda dates: pd.to_datetime(dates, format='%m/%d/%Y')
-        df = pd.read_csv(filename, parse_dates=['Time'], date_parser=dateparse)
+        df = pd.read_csv(filename, parse_dates=['Date'], date_parser=dateparse)
     return df
   
   def data_process(self):
     test_r_data = self.raw.copy()
     # print(test_r_data)
     test_r_data['Post_Concat'] = self.raw['Title'] + self.raw['Post Text'].fillna('')
-    X_list = test_r_data.loc[test_r_data['Label'] == -1].index.tolist()
+    # X_list = test_r_data.loc[test_r_data['Label'] == -1].index.tolist()
     # print(X_list)
-    test_r_data = test_r_data.drop(X_list)
+    # test_r_data = test_r_data.drop(X_list)
     # print(test_r_data)
-    df = test_r_data[['Post_Concat', 'Time', 'Score','Label']].copy()
-    # df = df.sort_values(by='Time',ascending=False)
-    dateparse = lambda dates: pd.to_datetime(dates, format='%Y-%m-%d')
-    
-    mask = (df['Time'] > self.start_date) & (df['Time'] <= self.end_date)
+    df = test_r_data[['Post_Concat', 'Date', 'Score']].copy()
+    # df = df.sort_values(by='Date',ascending=False)
+    mask = (df['Date'] > self.start_date) & (df['Date'] <= self.end_date)
     
     df_date = df.loc[mask]
     # print(df_date)
@@ -88,11 +92,9 @@ class SentimentPredictor():
   def predict(self,start_date, end_date):
     self.start_date = start_date
     self.end_date = end_date
-    # Load pretrained model
-    tokenizer = AutoTokenizer.from_pretrained(self.tokenizer)
-    model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
     # print(model)
-
+    tokenizer=self.tokenizer
+    model=self.model
     # Tokenize function
     def tokenize_function_test(examples):
       return tokenizer(examples["Post_Concat"], padding=True,truncation=True)
@@ -107,19 +109,17 @@ class SentimentPredictor():
     # Dataloader
     test_dataloader = DataLoader(tokenized_datasets_test['test'], batch_size=8)
     softmax = torch.nn.Softmax(dim=1)
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model.to(device)
     ret = []
     for batch in test_dataloader:
-      batch = {k: v.to(device) for k, v in batch.items()}
+      batch = {k: v.to(self.device) for k, v in batch.items()}
       with torch.no_grad():
         outputs = model(**batch)
       logits = outputs.logits
       # print(logits)
       prediction_prob = softmax(logits)[:,1]
-      ret.append(prediction_prob)
-    result = torch.stack(ret).flatten()
-    return result
+      ret.append(prediction_prob.detach().cpu())
+    result = torch.concat(ret,dim=-1).flatten().mean()
+    return result.item()
 
 if __name__ == "__main__":
   model_name = './model/model_juliensimon'

@@ -1,0 +1,16 @@
+__pycache__/sentiment_predictor.cpython-38.pyc
+__pycache__/sentimentpredictor.cpython-38.pyc
+__pycache__/time_series_predictor.cpython-38.pyc
+.vscode/launch.json
+.vscode/launch.json
+Model/.DS_Store
+Model/model_juliensimon/config.json
+Model/model_juliensimon/pytorch_model.bin
+Model/model_juliensimon/config.json
+Model/model_juliensimon/pytorch_model.bin
+Model/model_juliensimon/config.json
+Model/model_juliensimon/pytorch_model.bin
+Model/.DS_Store
+.DS_Store
+label_helper.py
+ts_fit_and_eval_test.txt
