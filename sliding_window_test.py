@@ -187,5 +187,5 @@ if __name__ == "__main__":
     print(res)
     out.append(res)
 
-    with open('s_fit_and_eval_test_out', 'w') as f:
+    with open('s_fit_and_eval_test_out', 'wb') as f:
         pickle.dump(out, f)
