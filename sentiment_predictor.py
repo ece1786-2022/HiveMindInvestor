@@ -36,9 +36,6 @@ class SentimentPredictor():
       self.model_name = model
       self.tokenizer_name = tokenizer
           # Load pretrained model
-      self.tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
-      self.model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
-      self.model.to(self.device)
   @staticmethod
   def read_csv(filename):
     try: 
@@ -92,9 +89,12 @@ class SentimentPredictor():
   def predict(self,start_date, end_date):
     self.start_date = start_date
     self.end_date = end_date
+    
+    tokenizer = AutoTokenizer.from_pretrained(self.tokenizer_name)
+    model = AutoModelForSequenceClassification.from_pretrained(self.model_name)
+    model.to(self.device)
+    
     # print(model)
-    tokenizer=self.tokenizer
-    model=self.model
     # Tokenize function
     def tokenize_function_test(examples):
       return tokenizer(examples["Post_Concat"], padding=True,truncation=True)

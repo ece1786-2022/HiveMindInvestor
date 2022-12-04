@@ -53,8 +53,8 @@ class TimeSeriesPredictor():
         self.fc = fc
     
     def predict(self,start_date,end_date, temp=1.0):
-        assert (start_date > self.test_data['ds']).sum() > 0
-        assert  (end_date < self.test_data['ds']).sum() > 0
+        assert (start_date >= self.test_data['ds']).sum() > 0
+        assert  (end_date <= self.test_data['ds']).sum() > 0
     
         fc=self.fc
         
@@ -67,13 +67,11 @@ class TimeSeriesPredictor():
         sigmoid = lambda x: 1/(1 + np.exp(-x))
         return sigmoid(predicted_trend)
     
-    def acutal_trend(self, start_date, end_date):
-        assert (start_date >= self.test_data['ds']).sum() > 0
-        assert  (end_date <= self.test_data['ds']).sum() > 0
+    def actual_trend(self, start_date, end_date):
     
-        mask = (self.test_data['ds'] > start_date) & (self.test_data['ds'] <= end_date)
-        test_data = self.test_data.loc[mask]
-        actual_trend = test_data['y'].iloc[-1] - test_data['y'].iloc[0]
+        mask = (self.raw['ds'] > start_date) & (self.raw['ds'] <= end_date)
+        data = self.raw.loc[mask]
+        actual_trend = data['y'].iloc[-1] - data['y'].iloc[0]
         return actual_trend
         
     def eval(self,start_date, end_date, loss_fn = None):
@@ -95,8 +93,8 @@ class TimeSeriesPredictor():
         
         score=None
         if loss_fn is None:
-            sigmoid = lambda x: 1/(1 + np.exp(-x))
-            score = sigmoid(predicted_trend/actual_trend)
+            # sigmoid = lambda x: 1/(1 + np.exp(-x))
+            score = predicted_trend/actual_trend
         else:
             score = loss_fn((predicted_trend, actual_trend))
         return score
