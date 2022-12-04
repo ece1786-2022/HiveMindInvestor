@@ -334,7 +334,7 @@ def run_combined_tests():
     
     input_data = './reddit_data/Tesla_posts_clean.csv'
     SOURCE_FILE='stocks_data/TSLA.csv'
-    res = combined_fit_and_eval_test(SOURCE_FILE, input_data,1,1)
+    res = combined_fit_and_eval_test(SOURCE_FILE, input_data,1,5)
     print(res)
     out.append(res)
 
@@ -345,8 +345,8 @@ if __name__ == "__main__":
     
     # run_ts_fit_and_eval_tests()
     # run_st_fit_and_eval_tests()
-    # run_combined_tests()
-    run_mt_fit_and_eval_tests()
+    run_combined_tests()
+    # run_mt_fit_and_eval_tests()
     # run_mm_fit_and_eval_tests()
     
     # with open('ts_fit_and_eval_test.txt', 'r') as f:
