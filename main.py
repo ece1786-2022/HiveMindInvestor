@@ -32,6 +32,25 @@ def get_sliding_window(start_date, end_date,window_size, stride):
         inputs.append((s,e))
     return inputs
 
+def get_acutal_trend(SOURCE_FILE):
+    start_date = '2022-09-08 00:00:00'
+    end_date = '2022-11-24 23:59:59'
+    offset_days=7
+    ts = TimeSeriesPredictor(SOURCE_FILE)
+    def fn(args):
+        sigmoid=lambda x: 1/(1 + np.exp(-x))
+        start_date, end_date = args
+        ts.split_data(start_date)
+        actual_trend = ts.actual_trend(start_date, end_date)
+        score=sigmoid(actual_trend)-0.5
+        return score
+    
+    ret = sliding_window(start_date, end_date, 7, 7, fn)
+    ret = torch.tensor(ret)
+    score = ret[ret>0].shape[0]/ret.shape[0]
+    windows = get_sliding_window(start_date, end_date, 7, 7)
+    return {SOURCE_FILE:{'overall_score':score, 'predictions': ret, 'time_windows':windows}}
+
 def mm_fit_and_eval_test(SOURCE_FILE):
     start_date = '2022-09-08 00:00:00'
     end_date = '2022-11-24 23:59:59'
@@ -166,6 +185,25 @@ def fn_combined(start_date, end_date, offset_days, st, ts, alpha, beta):
     score = (combined_prediction-0.5)/(actual_trend-0.5)
     return score
 
+def fn_combined_no_cis(start_date, end_date, offset_days, st, ts, alpha, beta):
+    sigmoid = lambda x: 1/(1 + np.exp(-x))
+    
+    ts.fit(train_test_split=start_date)
+    predicted_trend = ts.predict(start_date,end_date)
+    actual_trend = ts.actual_trend(start_date, end_date)
+    actual_trend =sigmoid(actual_trend)
+
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    start_date = (start_date - timedelta(offset_days)).strftime("%Y-%m-%d")
+    end_date = (end_date - timedelta(offset_days)).strftime("%Y-%m-%d")
+    sentiment = st.predict(start_date,end_date)
+
+    combined_prediction = sigmoid(alpha*predicted_trend+ beta*sentiment)
+    
+    score = (combined_prediction-0.5)/(actual_trend-0.5)
+    return score
+
 def combined_fit_and_eval_test(SOURCE_FILE, sentiment_file, alpha, beta):
     
     tokenizer = "juliensimon/reviews-sentiment-analysis"
@@ -203,6 +241,43 @@ def combined_fit_and_eval_test(SOURCE_FILE, sentiment_file, alpha, beta):
     print(score)
     return {SOURCE_FILE:{'overall_score':score, 'predictions': ret, 'time_windows':windows}}
 
+def combined_fit_and_eval_test_no_cis(SOURCE_FILE, sentiment_file, alpha, beta):
+    
+    tokenizer = "juliensimon/reviews-sentiment-analysis"
+    model_name = './model/model_juliensimon'
+    start_date = '2022-09-08 00:00:00'
+    end_date = '2022-11-24 23:59:59'
+    offset_days = 7
+    st = SentimentPredictor(sentiment_file, model_name, tokenizer)
+    ts = TimeSeriesPredictor(SOURCE_FILE)
+    
+    # ret = sliding_window(start_date, end_date, 7, offset_days, fn)
+    windows = get_sliding_window(start_date, end_date, 7, offset_days)
+    inputs = [
+        (
+        start_date,
+        end_date,
+        offset_days,
+        st,
+        ts,
+        alpha,
+        beta
+        )
+        for start_date, end_date in windows
+    ]
+    
+    with Pool(8) as p:
+        ret = p.starmap(fn_combined_no_cis, inputs)
+    # ret=[]
+    # for i in inputs:
+    #     ret.append(fn_combined_no_cis(*i))
+        
+    ret = torch.tensor(ret)
+    ret = ret[~ret.isnan()]
+    score = ret[ret>0].shape[0]/ret.shape[0]
+    print(score)
+    return {SOURCE_FILE:{'overall_score':score, 'predictions': ret, 'time_windows':windows}}
+
 def run_mm_fit_and_eval_tests():
     SOURCE_FILES=[
             'stocks_data/AMZN.csv',
@@ -218,7 +293,23 @@ def run_mm_fit_and_eval_tests():
         
     with open('mm_fit_and_eval_test', 'wb') as f:
         pickle.dump(out, f)
+
+def run_get_acutal_trend_fit_and_eval_tests():
+    SOURCE_FILES=[
+            'stocks_data/AMZN.csv',
+            'stocks_data/AAPL.csv',
+            'stocks_data/GOOG.csv',
+            'stocks_data/META.csv',
+            'stocks_data/NFLX.csv',
+            'stocks_data/TSLA.csv'
+                  ]
+
+    with Pool(len(SOURCE_FILES)) as p:
+        out = p.map(get_acutal_trend, SOURCE_FILES)
         
+    with open('actual_out', 'wb') as f:
+        pickle.dump(out, f)
+             
 def run_mt_fit_and_eval_tests():
     SOURCE_FILES=[
             'stocks_data/AMZN.csv',
@@ -341,11 +432,58 @@ def run_combined_tests():
     with open('combined_test_out', 'wb') as f:
         pickle.dump(out, f)
 
+def run_combined_no_cis_tests():
+    model_name = './model/model_juliensimon'
+    tokenizer = "juliensimon/reviews-sentiment-analysis"
+    ## Run sentiment tests
+    out = []
+    
+    input_data = './reddit_data/Amazon_posts_clean.csv'
+    SOURCE_FILE='stocks_data/AMZN.csv'
+    res = combined_fit_and_eval_test_no_cis(SOURCE_FILE, input_data, 1,10)
+    print(res)
+    out.append(res)
+    
+    input_data = './reddit_data/Apple_posts_clean.csv'
+    SOURCE_FILE='stocks_data/AAPL.csv'
+    res = combined_fit_and_eval_test_no_cis(SOURCE_FILE, input_data,1,10)
+    print(res)
+    out.append(res)
+    
+    input_data = './reddit_data/Google_posts_clean.csv'
+    SOURCE_FILE='stocks_data/GOOG.csv'
+    res = combined_fit_and_eval_test_no_cis(SOURCE_FILE, input_data,3,1)
+    print(res)
+    out.append(res)
+    
+    input_data = './reddit_data/Meta_posts_clean.csv'
+    SOURCE_FILE='stocks_data/META.csv'
+    res = combined_fit_and_eval_test(SOURCE_FILE, input_data,4,1)
+    print(res)
+    out.append(res)
+    
+    input_data = './reddit_data/Netflix_posts_clean.csv'
+    SOURCE_FILE='stocks_data/NFLX.csv'
+    res = combined_fit_and_eval_test_no_cis(SOURCE_FILE, input_data,10,1)
+    print(res)
+    out.append(res)
+    
+    input_data = './reddit_data/Tesla_posts_clean.csv'
+    SOURCE_FILE='stocks_data/TSLA.csv'
+    res = combined_fit_and_eval_test_no_cis(SOURCE_FILE, input_data,1,5)
+    print(res)
+    out.append(res)
+
+    with open('combined_test_no_cis_out', 'wb') as f:
+        pickle.dump(out, f)
+        
 if __name__ == "__main__":
     
     # run_ts_fit_and_eval_tests()
     # run_st_fit_and_eval_tests()
-    run_combined_tests()
+    # run_combined_tests()
+    # run_combined_no_cis_tests()
+    run_get_acutal_trend_fit_and_eval_tests()
     # run_mt_fit_and_eval_tests()
     # run_mm_fit_and_eval_tests()
     

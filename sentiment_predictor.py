@@ -123,7 +123,7 @@ class SentimentPredictor():
 
 if __name__ == "__main__":
   model_name = './model/model_juliensimon'
-  input_data = './data_labeled/Meta_posts_clean.csv'
+  input_data = './reddit_data/Meta_posts_clean.csv'
   tokenizer = "juliensimon/reviews-sentiment-analysis"
   start_date = '2022-11-18 00:00'
   end_date = '2022-11-24 23:59'
