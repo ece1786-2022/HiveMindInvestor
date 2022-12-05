@@ -74,6 +74,13 @@ class TimeSeriesPredictor():
         actual_trend = data['y'].iloc[-1] - data['y'].iloc[0]
         return actual_trend
         
+    def trend_ratio(self, start_date, end_date):
+        
+        mask = (self.raw['ds'] > start_date) & (self.raw['ds'] <= end_date)
+        data = self.raw.loc[mask]
+        trend_ratio = (data['y'].iloc[-1])/(data['y'].iloc[0])
+        return trend_ratio
+    
     def eval(self,start_date, end_date, loss_fn = None):
         '''
         loss_fn takes a predicted_trend and a actual_trend as inpts

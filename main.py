@@ -32,6 +32,25 @@ def get_sliding_window(start_date, end_date,window_size, stride):
         inputs.append((s,e))
     return inputs
 
+def get_money_trend(SOURCE_FILE):
+    start_date = '2022-09-08 00:00:00'
+    end_date = '2022-11-24 23:59:59'
+    offset_days=7
+    ts = TimeSeriesPredictor(SOURCE_FILE)
+    def fn(args):
+        sigmoid=lambda x: 1/(1 + np.exp(-x))
+        start_date, end_date = args
+        ts.split_data(start_date)
+        ratio = ts.trend_ratio(start_date, end_date)
+        score=ratio
+        return score
+    
+    ret = sliding_window(start_date, end_date, 7, 7, fn)
+    ret = torch.tensor(ret)
+    score = ret[ret>0].shape[0]/ret.shape[0]
+    windows = get_sliding_window(start_date, end_date, 7, 7)
+    return {SOURCE_FILE:{'overall_score':score, 'predictions': ret, 'time_windows':windows}}
+
 def get_acutal_trend(SOURCE_FILE):
     start_date = '2022-09-08 00:00:00'
     end_date = '2022-11-24 23:59:59'
@@ -278,6 +297,22 @@ def combined_fit_and_eval_test_no_cis(SOURCE_FILE, sentiment_file, alpha, beta):
     print(score)
     return {SOURCE_FILE:{'overall_score':score, 'predictions': ret, 'time_windows':windows}}
 
+def run_get_money_trend():
+    SOURCE_FILES=[
+            'stocks_data/AMZN.csv',
+            'stocks_data/AAPL.csv',
+            'stocks_data/GOOG.csv',
+            'stocks_data/META.csv',
+            'stocks_data/NFLX.csv',
+            'stocks_data/TSLA.csv'
+                  ]
+
+    with Pool(len(SOURCE_FILES)) as p:
+        out = p.map(get_money_trend, SOURCE_FILES)
+        
+    with open('money_trend', 'wb') as f:
+        pickle.dump(out, f)
+        
 def run_mm_fit_and_eval_tests():
     SOURCE_FILES=[
             'stocks_data/AMZN.csv',
@@ -483,7 +518,8 @@ if __name__ == "__main__":
     # run_st_fit_and_eval_tests()
     # run_combined_tests()
     # run_combined_no_cis_tests()
-    run_get_acutal_trend_fit_and_eval_tests()
+    # run_get_acutal_trend_fit_and_eval_tests()
+    run_get_money_trend()
     # run_mt_fit_and_eval_tests()
     # run_mm_fit_and_eval_tests()
     
